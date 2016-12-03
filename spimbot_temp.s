@@ -119,65 +119,13 @@ on_fire_interrupt:
 	lw 	$a1,	GET_FIRE_LOC
 	srl 	$t0,	$a1,	16		# $t0 = fire location x index 
 	and 	$t1,	$a1,	0x0000ffff	# $t1 = fire location y index 
-	li 	$t7,	30
-	mul 	$t0,	$t0,	$t7
-	add 	$t0,	$t0,	15	# $t0 = 15 + x * 30
-	mul 	$t1,	$t1,	$t7
-	add 	$t1,	$t1,	15	# $t1 = 15 + y * 30
-	lw 	$t2,	BOT_X 
-	lw 	$t3,	BOT_Y
 
-	# Put out fire!
-	li	$t7, 	0
-	sw 	$t7,	ANGLE
-	
-	li 	$t7, 	1
-	sw 	$t7, 	ANGLE_CONTROL
+    move    $a0, $t0
+    move    $a1, $t1
+    jal int_bot_move
 
-xmove_loop:
-	lw 	$t2,	BOT_X	
-	sub 	$t4,	$t0,	$t2	# xdif
-	beq 	$t4,	0,	xmove_endloop
-	blt	$t4,	0,	xmove_negative
-	li 	$t7,	10
-	sw 	$t7,	VELOCITY
-	j 	xmove_loop
-	
-xmove_negative:
-	li 	$t7,	-10
-	sw 	$t7,	VELOCITY
-	j 	xmove_loop
-
-xmove_endloop:
-
-	# set angle to 90
-	li	$t7, 	90
-	sw 	$t7,	ANGLE
-
-	li 	$t7, 	1
-	sw 	$t7, 	ANGLE_CONTROL
-
-ymove_loop:
-	lw 	$t3,	BOT_Y
-	sub 	$t4,	$t1,	$t3	# ydif
-	beq 	$t4,	0,	ymove_endloop
-	blt	$t4,	0,	ymove_negative
-	li 	$t7,	10
-	sw 	$t7,	VELOCITY
-	j 	ymove_loop
-	
-ymove_negative:
-	li 	$t7,	-10
-	sw 	$t7,	VELOCITY
-	j 	ymove_loop
-
-ymove_endloop:
-	sw 	$t7 	PUT_OUT_FIRE
-	sw 	$zero	VELOCITY
-
+    sw  $zero, PUT_OUT_FIRE
 	j	interrupt_dispatch	# see if other interrupts are waiting
-
-
 
 
 non_intrpt:				# was some non-interrupt
@@ -202,8 +150,101 @@ done:
 .set noat
 	move	$at, $k1		# Restore $at
 .set at 
-	eret   
+	eret
 
+int_bot_move:
+    li      $t4, 32767 # check to make sure bot has a place to go
+    bne     $t0, $t4, int_bot_move_allow
+    bne     $t1, $t4, int_bot_move_allow
+    li      $t4, 0
+    sw      $t4, VELOCITY
+    j       int_bot_move_end
+
+int_bot_move_allow:
+    li      $t2, 10
+    sw      $t2, VELOCITY
+    lw      $t2, BOT_X
+    lw      $t3, BOT_Y
+    li      $t4, 30
+
+    div     $t2, $t2, 30
+    div     $t3, $t3, 30
+    mflo    $t3
+
+## start checking x direction
+    beq     $t0, $t2, int_bot_move_x_end
+    rem     $t5, $t3, 2
+
+int_bot_move_x_start:
+    bge     $t0, $t2, int_bot_move_x_right
+    li      $t4, 180 # turn bot left because the gotox position is less than botx position
+    sw      $t4, ANGLE
+    li      $t4, 1
+    sw      $t4, ANGLE_CONTROL
+    j       int_bot_move_x_next
+int_bot_move_x_right:
+    li      $t4, 0
+    sw      $t4, ANGLE
+    li      $t4, 1
+    sw      $t4, ANGLE_CONTROL
+
+int_bot_move_x_next:
+    lw      $t2, BOT_X
+    div     $t2, $t2, 30
+
+    rem     $t6, $t2, 2
+    and     $t6, $t5, $t6
+    beq     $t6, $zero, int_bot_no_plant_x
+    beq     $t4, $t2, int_bot_no_plant_x
+    move    $t4, $t2
+    sw      $zero, SEED_TILE
+    bne     $t0, $t2, int_bot_move_x_next
+int_bot_no_plant_x:
+    li      $t4, 10
+    sw      $t4, VELOCITY
+    bne     $t0, $t2, int_bot_move_x_next
+int_bot_move_x_end:
+
+## start checking Y direction now
+    beq     $t1, $t3, int_bot_move_y_end
+
+    rem     $t5, $t2, 2
+int_bot_move_y_start:
+    bge     $t1, $t3, int_bot_move_y_down
+    li      $t4, 270
+    sw      $t4, ANGLE
+    li      $t4, 1
+    sw      $t4, ANGLE_CONTROL
+    j       int_bot_move_y_next
+int_bot_move_y_down:
+    li      $t4, 90
+    sw      $t4, ANGLE
+    li      $t4, 1
+    sw      $t4, ANGLE_CONTROL
+
+int_bot_move_y_next:
+    lw      $t3, BOT_Y
+    div     $t3, $t3, 30
+
+    rem     $t6, $t3, 2
+    and     $t6, $t5, $t6
+    beq     $t6, $zero, int_bot_no_plant_y
+    beq     $t4, $t3, int_bot_no_plant_y
+    move    $t4, $t3
+    sw      $zero, SEED_TILE
+    bne     $t1, $t3, int_bot_move_y_next
+int_bot_no_plant_y:
+    li      $t4, 10
+    sw      $t4, VELOCITY
+    bne     $t1, $t3, int_bot_move_y_next
+int_bot_move_y_end:
+
+    # We just went through the loops and its safe to assume
+    # that the bot position is the same as the target position
+    sw      $zero, VELOCITY
+    lw  $t0,    GET_NUM_SEEDS
+    sw  $t0,    PRINT_INT_ADDR  # print number of seeds
+    jr      $ra
 
 #########################################MAIN###########################################
 .data
@@ -272,8 +313,6 @@ pi_endloop:
 	j 	infinite
 
 	j 	main
-
-
 
 #########################################FUNCTIONS###########################################
 .globl recursive_backtracking
