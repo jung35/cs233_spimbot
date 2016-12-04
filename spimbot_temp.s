@@ -281,18 +281,32 @@ main:
 
 # Wait for puzzle to be loaded
 infinite:
+	jal 	solve_puzzle
+
+	j 	infinite
+
+	j 	main
+
+#########################################FUNCTIONS###########################################
+solve_puzzle:
+	sub 	$sp,	$sp,	20
+	sw 	$ra,	0($sp)
+	sw 	$s0,	4($sp)
+	sw 	$s1,	8($sp)
+	sw 	$s2,	12($sp)
+
 	la 	$t0,	SOLVE_PUZZLE	
 	lw 	$t0,	0($t0)
-	bne 	$t0,	1,	infinite
+	bne 	$t0,	1,	pi_end
 
-	li 	$t0,	0
-	la 	$t1,	solution_data
+	li 	$s0,	0
+	la 	$s1,	solution_data
 pi_loop:
-	bge 	$t0,	328,	pi_endloop
-	sll 	$t2,	$t0,	2		#t0 << 2
-	add 	$t2,	$t2,	$t1
-	sw 	$0,	0($t2)
-	add 	$t0,	$t0,	1
+	bge 	$s0,	328,	pi_endloop
+	sll 	$s2,	$s0,	2		#t0 << 2
+	add 	$s2,	$s2,	$s1
+	sw 	$0,	0($s2)
+	add 	$s0,	$s0,	1
 	j 	pi_loop
 pi_endloop:
 
@@ -300,21 +314,23 @@ pi_endloop:
 	la	$a1, 	puzzle_data
 	jal	recursive_backtracking
 
-	la 	$t0,	solution_data
-	sw	$t0,	SUBMIT_SOLUTION
+	la 	$s0,	solution_data
+	sw	$s0,	SUBMIT_SOLUTION
 
 	# Set SOLVE_PUZZLE to 0;
-	li 	$t0,	0
-	la 	$t1,	SOLVE_PUZZLE
-	sw 	$t0,	0($t1)
+	li 	$s0,	0
+	la 	$s1,	SOLVE_PUZZLE
+	sw 	$s0,	0($s1)
 
-	lw	$t0,	GET_NUM_SEEDS
-	sw	$t0,	PRINT_INT_ADDR	# print number of seeds
-	j 	infinite
+pi_end:
+	lw 	$ra,	0($sp)
+	lw 	$s0,	4($sp)
+	lw 	$s1,	8($sp)
+	lw 	$s2,	12($sp)
+	add 	$sp,	$sp,	20
+	jr 	$ra
 
-	j 	main
 
-#########################################FUNCTIONS###########################################
 .globl recursive_backtracking
 recursive_backtracking:
 	# Your code goes here :)
