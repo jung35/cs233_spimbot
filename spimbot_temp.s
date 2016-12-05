@@ -394,7 +394,7 @@ endGrowing:
     div     $t1, $t1, 30
     mul     $t1, $t1, 2
     sub     $t1, $t1, 1
-    mul     $t2, $t2, $t2
+    mul     $t1, $t1, $t1
     rem     $t1, $t1, 10
     lw      $t2, OTHER_BOT_X
     div     $t2, $t2, 30
@@ -408,7 +408,7 @@ moveOk:
     jal     bot_move
 # Wait for puzzle to be loaded
 #infinite:
-    
+
 	jal 	solve_puzzle
 
 #	j 	infinite
