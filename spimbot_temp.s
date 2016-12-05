@@ -50,7 +50,7 @@ REQUEST_PUZZLE_INT_MASK = 0x800
 
 #########################################INTERRUPT HANDLER###########################################
 .kdata				# interrupt handler data (separated just for readability)
-chunkIH:	.space 56	# space for 13 registers
+chunkIH:	.space 88	# space for registers
 non_intrpt_str:	.asciiz "Non-interrupt exception\n"
 unhandled_str:	.asciiz "Unhandled interrupt type\n"
 
@@ -62,7 +62,7 @@ interrupt_handler:
 	la	$k0, 	chunkIH
 	sw	$a0, 	0($k0)		# Get some free registers                  
 	sw	$a1, 	4($k0)		# by storing them to a global variable
-	sw 	$t0,	8($k0)     
+	sw 	$t0,	8($k0)
 	sw 	$t1,	12($k0)
 	sw 	$t2,	16($k0)
 	sw 	$t3,	20($k0)
@@ -74,6 +74,14 @@ interrupt_handler:
     sw  $t9,    44($k0)
 	sw 	$v0,	48($k0)
     sw  $ra,    52($k0)
+    sw  $s0,    56($k0)
+    sw  $s1,    60($k0)
+    sw  $s2,    64($k0)
+    sw  $s3,    68($k0)
+    sw  $s4,    72($k0)
+    sw  $s5,    76($k0)
+    sw  $s6,    80($k0)
+    sw  $s7,    84($k0)
 
 	mfc0	$k0, $13		# Get Cause register                       
 	srl	$a0, $k0, 2                
@@ -169,6 +177,14 @@ done:
     lw  $t9,    44($k0)
 	lw 	$v0,	48($k0)
     lw  $ra,    52($k0)
+    lw  $s0,    56($k0)
+    lw  $s1,    60($k0)
+    lw  $s2,    64($k0)
+    lw  $s3,    68($k0)
+    lw  $s4,    72($k0)
+    lw  $s5,    76($k0)
+    lw  $s6,    80($k0)
+    lw  $s7,    84($k0)
 .set noat
 	move	$at, $k1		# Restore $at
 .set at 
@@ -316,17 +332,21 @@ looooop:
     or  $t4,    MAX_GROWTH_INT_MASK
 	or	$t4, 	$t4, 1		# global interrupt enable
 	mtc0	$t4, 	$12		# set interrupt mask (Status register)
-
+    la  $t3,    SOLVE_PUZZLE
+    li  $t5, 3
+    lw  $t4, 0($t3)
 
 	li 	$t0,	0
 	sw 	$t0,	VELOCITY
 
+    beq $t4, $t5, noPuzzleRequest # puzzle already requested
     lw  $t0, GET_NUM_SEEDS
     bne $t0, $zero, checkNumFireStarters
 	li  $t1, 1  # 0 for water, 1 for seeds, 2 for fire starters
     sw  $t1,    SET_RESOURCE_TYPE
     la  $t0,    puzzle_data
     sw  $t0,    REQUEST_PUZZLE
+    sw  $t5, 0($t3)
     j   noPuzzleRequest
 checkNumFireStarters:
     lw  $t0, GET_NUM_FIRE_STARTERS
@@ -335,6 +355,7 @@ checkNumFireStarters:
     sw  $t1,    SET_RESOURCE_TYPE
     la  $t0,    puzzle_data
     sw  $t0,    REQUEST_PUZZLE
+    sw  $t5, 0($t3)
     j   noPuzzleRequest
 checkNumWater: # need to put out water
     lw  $t0, GET_NUM_WATER_DROPS
@@ -343,6 +364,7 @@ checkNumWater: # need to put out water
     sw  $t1,    SET_RESOURCE_TYPE
     la  $t0,    puzzle_data
     sw  $t0,    REQUEST_PUZZLE
+    sw  $t5, 0($t3)
 noPuzzleRequest:
     lw      $a0, BOT_Y          # botY
     lw      $a1, BOT_X          # botX
@@ -390,18 +412,10 @@ endGrowing:
     bne     $t1, 32767, moveOk
     bne     $t2, 32767, moveOk
     #j   looooop
-    lw      $t1, OTHER_BOT_Y
-    div     $t1, $t1, 30
-    mul     $t1, $t1, 2
-    sub     $t1, $t1, 1
-    mul     $t1, $t1, $t1
-    rem     $t1, $t1, 10
-    lw      $t2, OTHER_BOT_X
-    div     $t2, $t2, 30
-    mul     $t2, $t2, 2
-    sub     $t2, $t2, 1
-    mul     $t2, $t2, $t2
-    rem     $t2, $t2, 10
+    lw      $t1, BOT_X
+    lw      $t2, OTHER_BOT_Y
+    rem     $t1, $t2, 10
+    rem     $t2, $t1, 10
 moveOk:
     move    $a0, $t1            # gotoX = tmpPosX
     move    $a1, $t2            # gotoY = tmpPosY
@@ -867,14 +881,6 @@ isvd_zero:
     
 .globl get_domain_for_addition
 get_domain_for_addition:
-
-    # We highly recommend that you copy in our 
-    # solution when it is released on Tuesday night 
-    # after the late deadline for Lab7.2
-    #
-    # If you reach this part before Tuesday night,
-    # you can paste your Lab7.2 solution here for now
-
     sub    $sp, $sp, 20
     sw     $ra, 0($sp)
     sw     $s0, 4($sp)
@@ -889,13 +895,18 @@ get_domain_for_addition:
     jal    convert_highest_bit_to_int
     move   $s3, $v0                     # s3 = upper_bound
 
-    sub    $a0, $0, $s2	                # -domain
+    sub    $a0, $0, $s2                 # -domain
     and    $a0, $a0, $s2                # domain & (-domain)
     jal    convert_highest_bit_to_int   # v0 = lower_bound
-	   
+       
     sub    $t0, $s1, 1                  # num_cell - 1
     mul    $t0, $t0, $v0                # (num_cell - 1) * lower_bound
     sub    $t0, $s0, $t0                # t0 = high_bits
+    bge    $t0, 0, gdfa_skip0
+
+    li     $t0, 0
+
+gdfa_skip0:
     bge    $t0, $s3, gdfa_skip1
 
     li     $t1, 1          
@@ -903,7 +914,7 @@ get_domain_for_addition:
     sub    $t0, $t0, 1                  # (1 << high_bits) - 1
     and    $s2, $s2, $t0                # domain & ((1 << high_bits) - 1)
 
-gdfa_skip1:	   
+gdfa_skip1:    
     sub    $t0, $s1, 1                  # num_cell - 1
     mul    $t0, $t0, $s3                # (num_cell - 1) * upper_bound
     sub    $t0, $s0, $t0                # t0 = low_bits
@@ -913,7 +924,7 @@ gdfa_skip1:
     sra    $s2, $s2, $t0                # domain >> (low_bits - 1)
     sll    $s2, $s2, $t0                # domain >> (low_bits - 1) << (low_bits - 1)
 
-gdfa_skip2:	   
+gdfa_skip2:    
     move   $v0, $s2                     # return domain
     lw     $ra, 0($sp)
     lw     $s0, 4($sp)
