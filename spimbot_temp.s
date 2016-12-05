@@ -50,7 +50,7 @@ REQUEST_PUZZLE_INT_MASK = 0x800
 
 #########################################INTERRUPT HANDLER###########################################
 .kdata				# interrupt handler data (separated just for readability)
-chunkIH:	.space 44	# space for 10 registers
+chunkIH:	.space 56	# space for 13 registers
 non_intrpt_str:	.asciiz "Non-interrupt exception\n"
 unhandled_str:	.asciiz "Unhandled interrupt type\n"
 
@@ -70,7 +70,10 @@ interrupt_handler:
 	sw 	$t5,	28($k0)
 	sw 	$t6,	32($k0)
 	sw 	$t7,	36($k0)
-	sw 	$v0,	40($k0)
+    sw  $t8,    40($k0)
+    sw  $t9,    44($k0)
+	sw 	$v0,	48($k0)
+    sw  $ra,    52($k0)
 
 	mfc0	$k0, $13		# Get Cause register                       
 	srl	$a0, $k0, 2                
@@ -93,6 +96,8 @@ interrupt_dispatch:			# Interrupt:
 	and 	$a0,	$k0,	REQUEST_PUZZLE_INT_MASK
 	bne 	$a0,	0,	puzzle_interrupt
 
+	and    $a0, $k0, MAX_GROWTH_INT_MASK
+    bne     $a0,    0,  max_growth_interrupt
 
 	# add dispatch for other interrupt types here.
 
@@ -127,6 +132,20 @@ on_fire_interrupt:
     sw  $zero, PUT_OUT_FIRE
 	j	interrupt_dispatch	# see if other interrupts are waiting
 
+max_growth_interrupt:
+    sw  $a1,    MAX_GROWTH_ACK     # acknowledge interrupt
+
+    lw  $a1,    MAX_GROWTH_TILE
+    srl     $t0,    $a1,    16      # $t0 = growth location x index 
+    and     $t1,    $a1,    0x0000ffff  # $t1 = growth location y index 
+
+    move    $a0, $t0
+    move    $a1, $t1
+    jal int_bot_move
+
+    sw  $zero, HARVEST_TILE
+    j   interrupt_dispatch  # see if other interrupts are waiting
+
 
 non_intrpt:				# was some non-interrupt
 	li	$v0, PRINT_STRING
@@ -146,13 +165,18 @@ done:
 	lw 	$t5,	28($k0)
 	lw 	$t6,	32($k0)
 	lw 	$t7,	36($k0)
-	lw 	$v0,	40($k0)
+    lw  $t8,    40($k0)
+    lw  $t9,    44($k0)
+	lw 	$v0,	48($k0)
+    lw  $ra,    52($k0)
 .set noat
 	move	$at, $k1		# Restore $at
 .set at 
 	eret
 
 int_bot_move:
+    move    $t0, $a0
+    move    $t1, $a1
     li      $t4, 32767 # check to make sure bot has a place to go
     bne     $t0, $t4, int_bot_move_allow
     bne     $t1, $t4, int_bot_move_allow
@@ -169,7 +193,6 @@ int_bot_move_allow:
 
     div     $t2, $t2, 30
     div     $t3, $t3, 30
-    mflo    $t3
 
 ## start checking x direction
     beq     $t0, $t2, int_bot_move_x_end
@@ -200,6 +223,17 @@ int_bot_move_x_next:
     sw      $zero, SEED_TILE
     bne     $t0, $t2, int_bot_move_x_next
 int_bot_no_plant_x:
+    la      $t7, tile_data
+    mul     $t8, $t3, 10
+    add     $t8, $t8, $t2
+    mul     $t8, $t8, 16
+    add     $t8, $t8, $t7
+    lw      $t7, 0($t8)
+    lw      $t8, 4($t8)
+    and     $t7, $t7, $8
+    beq     $t7, $zero, int_bot_tile_x_owner
+    sw      $zero, BURN_TILE
+int_bot_tile_x_owner:
     li      $t4, 10
     sw      $t4, VELOCITY
     bne     $t0, $t2, int_bot_move_x_next
@@ -234,6 +268,17 @@ int_bot_move_y_next:
     sw      $zero, SEED_TILE
     bne     $t1, $t3, int_bot_move_y_next
 int_bot_no_plant_y:
+    la      $t7, tile_data
+    mul     $t8, $t3, 10
+    add     $t8, $t8, $t2
+    mul     $t8, $t8, 16
+    add     $t8, $t8, $t7
+    lw      $t7, 0($t8)
+    lw      $t8, 4($t8)
+    and     $t7, $t7, $8
+    beq     $t7, $zero, int_bot_tile_y_owner
+    sw      $zero, BURN_TILE
+int_bot_tile_y_owner:
     li      $t4, 10
     sw      $t4, VELOCITY
     bne     $t1, $t3, int_bot_move_y_next
@@ -242,8 +287,6 @@ int_bot_move_y_end:
     # We just went through the loops and its safe to assume
     # that the bot position is the same as the target position
     sw      $zero, VELOCITY
-    lw  $t0,    GET_NUM_SEEDS
-    sw  $t0,    PRINT_INT_ADDR  # print number of seeds
     jr      $ra
 
 #########################################MAIN###########################################
@@ -260,12 +303,17 @@ SOLVE_PUZZLE: .space 4
 
 .text
 main:
+    sw  $zero, SEED_TILE
+looooop:
+    la      $t0, tile_data
+    sw      $t0, TILE_SCAN
 	# go wild
 	# the world is your oyster :)
 
 	# Enable interrupts
 	li	$t4, 	ON_FIRE_MASK	# on fire interrupt enable bit
-	or 	$t4,	REQUEST_PUZZLE_INT_MASK
+    or  $t4,    REQUEST_PUZZLE_INT_MASK
+    or  $t4,    MAX_GROWTH_INT_MASK
 	or	$t4, 	$t4, 1		# global interrupt enable
 	mtc0	$t4, 	$12		# set interrupt mask (Status register)
 
@@ -273,21 +321,218 @@ main:
 	li 	$t0,	0
 	sw 	$t0,	VELOCITY
 
-	li  	$t0, 	1  # 0 for water, 1 for seeds, 2 for fire starters
-	sw  	$t0, 	SET_RESOURCE_TYPE
-    	la  	$t0, 	puzzle_data
-    	sw  	$t0, 	REQUEST_PUZZLE
+    lw  $t0, GET_NUM_SEEDS
+    bne $t0, $zero, checkNumFireStarters
+	li  $t1, 1  # 0 for water, 1 for seeds, 2 for fire starters
+    sw  $t1,    SET_RESOURCE_TYPE
+    la  $t0,    puzzle_data
+    sw  $t0,    REQUEST_PUZZLE
+    j   noPuzzleRequest
+checkNumFireStarters:
+    lw  $t0, GET_NUM_FIRE_STARTERS
+    bgt $t0, $zero, checkNumWater
+    li  $t1, 2
+    sw  $t1,    SET_RESOURCE_TYPE
+    la  $t0,    puzzle_data
+    sw  $t0,    REQUEST_PUZZLE
+    j   noPuzzleRequest
+checkNumWater: # need to put out water
+    lw  $t0, GET_NUM_WATER_DROPS
+    bne $t0, $zero, noPuzzleRequest
+    li  $t1, 0
+    sw  $t1,    SET_RESOURCE_TYPE
+    la  $t0,    puzzle_data
+    sw  $t0,    REQUEST_PUZZLE
+noPuzzleRequest:
+    lw      $a0, BOT_Y          # botY
+    lw      $a1, BOT_X          # botX
 
+    li      $t0, 30
 
+    div     $a0, $a0, $t0
+    div     $a1, $a1, $t0
+
+    li      $t0, 32767          # gotoDist
+    li      $t1, 32767          # gotoY
+    li      $t2, 32767          # gotoX
+
+    li      $t3, 10             # to compare with x and y
+    li      $t4, 0              # int y
+
+tileLoopY:
+    li      $t5, 0              # int x
+tileLoopX:
+    mul     $t6, $t4, 10        # tmpPos = tmpPosY * 10 
+    add     $t6, $t6, $t5       # tmpPos += tmpPosX
+    mul     $t6, $t6, 16
+    la      $t7, tile_data
+    add     $t6, $t7, $t6
+    lw      $t7, 0($t6)
+    lw      $t8, 4($t6)
+    and     $t7, $t7, $8
+    beq     $t7, $0, endGrowing
+    sub     $t8, $a0, $t4       # disY = botY - tmpPosY
+    mul     $t8, $t8, $t8       # disY *= disY
+    sub     $t9, $a1, $t5       # disX = botX - tmpPosX
+    mul     $t9, $t9, $t9       # disX *= disX
+    add     $t8, $t8, $t9       # totalDis = disX + disY
+    ble     $t0, $t8, endGrowing
+    beq     $t8, $zero, endGrowing
+    move    $t0, $t8            # gotodist = totalDis
+    move    $t1, $t5            # gotoX = tmpPosX
+    move    $t2, $t4            # gotoY = tmpPosY
+endGrowing:
+    add     $t5, $t5, 1         # x++
+    blt     $t5, 10, tileLoopX
+    add     $t4, $t4, 1         # y++
+    blt     $t4, 10, tileLoopY
+
+    bne     $t1, 32767, moveOk
+    bne     $t2, 32767, moveOk
+    #j   looooop
+    lw      $t1, OTHER_BOT_Y
+    div     $t1, $t1, 30
+    mul     $t1, $t1, 2
+    sub     $t1, $t1, 1
+    mul     $t2, $t2, $t2
+    rem     $t1, $t1, 10
+    lw      $t2, OTHER_BOT_X
+    div     $t2, $t2, 30
+    mul     $t2, $t2, 2
+    sub     $t2, $t2, 1
+    mul     $t2, $t2, $t2
+    rem     $t2, $t2, 10
+moveOk:
+    move    $a0, $t1            # gotoX = tmpPosX
+    move    $a1, $t2            # gotoY = tmpPosY
+    jal     bot_move
 # Wait for puzzle to be loaded
-infinite:
+#infinite:
+    
 	jal 	solve_puzzle
 
-	j 	infinite
+#	j 	infinite
 
-	j 	main
+	j 	looooop
 
 #########################################FUNCTIONS###########################################
+
+
+bot_move:
+    move    $t0, $a0
+    move    $t1, $a1
+    li      $t4, 32767 # check to make sure bot has a place to go
+    bne     $t0, $t4, bot_move_allow
+    bne     $t1, $t4, bot_move_allow
+    li      $t4, 0
+    sw      $t4, VELOCITY
+    j       bot_move_end
+
+bot_move_allow:
+    li      $t2, 10
+    sw      $t2, VELOCITY
+    lw      $t2, BOT_X
+    lw      $t3, BOT_Y
+    li      $t4, 30
+
+    div     $t2, $t2, 30
+    div     $t3, $t3, 30
+
+## start checking x direction
+    beq     $t0, $t2, bot_move_x_end
+    rem     $t5, $t3, 2
+
+bot_move_x_start:
+    bge     $t0, $t2, bot_move_x_right
+    li      $t4, 180 # turn bot left because the gotox position is less than botx position
+    sw      $t4, ANGLE
+    li      $t4, 1
+    sw      $t4, ANGLE_CONTROL
+    j       bot_move_x_next
+bot_move_x_right:
+    li      $t4, 0
+    sw      $t4, ANGLE
+    li      $t4, 1
+    sw      $t4, ANGLE_CONTROL
+
+bot_move_x_next:
+    lw      $t2, BOT_X
+    div     $t2, $t2, 30
+
+    rem     $t6, $t2, 2
+    and     $t6, $t5, $t6
+    beq     $t6, $zero, bot_no_plant_x
+    beq     $t4, $t2, bot_no_plant_x
+    move    $t4, $t2
+    sw      $zero, SEED_TILE
+    bne     $t0, $t2, bot_move_x_start
+bot_no_plant_x:
+    la      $t7, tile_data
+    mul     $t8, $t3, 10
+    add     $t8, $t8, $t2
+    mul     $t8, $t8, 16
+    add     $t8, $t8, $t7
+    lw      $t7, 0($t8)
+    lw      $t8, 4($t8)
+    and     $t7, $t7, $8
+    beq     $t7, $zero, bot_tile_x_owner
+    sw      $zero, BURN_TILE
+bot_tile_x_owner:
+    li      $t4, 10
+    sw      $t4, VELOCITY
+    bne     $t0, $t2, bot_move_x_start
+bot_move_x_end:
+
+## start checking Y direction now
+    beq     $t1, $t3, bot_move_y_end
+
+    rem     $t5, $t2, 2
+bot_move_y_start:
+    bge     $t1, $t3, bot_move_y_down
+    li      $t4, 270
+    sw      $t4, ANGLE
+    li      $t4, 1
+    sw      $t4, ANGLE_CONTROL
+    j       bot_move_y_next
+bot_move_y_down:
+    li      $t4, 90
+    sw      $t4, ANGLE
+    li      $t4, 1
+    sw      $t4, ANGLE_CONTROL
+
+bot_move_y_next:
+    lw      $t3, BOT_Y
+    div     $t3, $t3, 30
+
+    rem     $t6, $t3, 2
+    and     $t6, $t5, $t6
+    beq     $t6, $zero, bot_no_plant_y
+    beq     $t4, $t3, bot_no_plant_y
+    move    $t4, $t3
+    sw      $zero, SEED_TILE
+    bne     $t1, $t3, bot_move_y_start
+bot_no_plant_y:
+    la      $t7, tile_data
+    mul     $t8, $t3, 10
+    add     $t8, $t8, $t2
+    mul     $t8, $t8, 16
+    add     $t8, $t8, $t7
+    lw      $t7, 0($t8)
+    lw      $t8, 4($t8)
+    and     $t7, $t7, $8
+    beq     $t7, $zero, bot_tile_y_owner
+    sw      $zero, BURN_TILE
+bot_tile_y_owner:
+    li      $t4, 10
+    sw      $t4, VELOCITY
+    bne     $t1, $t3, bot_move_y_start
+bot_move_y_end:
+
+    # We just went through the loops and its safe to assume
+    # that the bot position is the same as the target position
+    sw      $zero, VELOCITY
+    jr      $ra
+
 solve_puzzle:
 	sub 	$sp,	$sp,	20
 	sw 	$ra,	0($sp)
