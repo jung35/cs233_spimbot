@@ -70,18 +70,18 @@ interrupt_handler:
 	sw 	$t5,	28($k0)
 	sw 	$t6,	32($k0)
 	sw 	$t7,	36($k0)
-    sw  $t8,    40($k0)
-    sw  $t9,    44($k0)
+    	sw  	$t8,    40($k0)
+    	sw  	$t9,    44($k0)
 	sw 	$v0,	48($k0)
-    sw  $ra,    52($k0)
-    sw  $s0,    56($k0)
-    sw  $s1,    60($k0)
-    sw  $s2,    64($k0)
-    sw  $s3,    68($k0)
-    sw  $s4,    72($k0)
-    sw  $s5,    76($k0)
-    sw  $s6,    80($k0)
-    sw  $s7,    84($k0)
+    	sw  	$ra,    52($k0)
+    	sw  	$s0,    56($k0)
+    	sw  	$s1,    60($k0)
+    	sw  	$s2,    64($k0)
+    	sw  	$s3,    68($k0)
+    	sw  	$s4,    72($k0)
+    	sw  	$s5,    76($k0)
+    	sw  	$s6,    80($k0)
+    	sw  	$s7,    84($k0)
 
 	mfc0	$k0, $13		# Get Cause register                       
 	srl	$a0, $k0, 2                
@@ -104,8 +104,8 @@ interrupt_dispatch:			# Interrupt:
 	and 	$a0,	$k0,	REQUEST_PUZZLE_INT_MASK
 	bne 	$a0,	0,	puzzle_interrupt
 
-	and    $a0, $k0, MAX_GROWTH_INT_MASK
-    bne     $a0,    0,  max_growth_interrupt
+	and    	$a0, 	$k0, 	MAX_GROWTH_INT_MASK
+    	bne     $a0,    0,  	max_growth_interrupt
 
 	# add dispatch for other interrupt types here.
 
@@ -173,137 +173,96 @@ done:
 	lw 	$t5,	28($k0)
 	lw 	$t6,	32($k0)
 	lw 	$t7,	36($k0)
-    lw  $t8,    40($k0)
-    lw  $t9,    44($k0)
+    	lw  	$t8,    40($k0)
+    	lw  	$t9,    44($k0)
 	lw 	$v0,	48($k0)
-    lw  $ra,    52($k0)
-    lw  $s0,    56($k0)
-    lw  $s1,    60($k0)
-    lw  $s2,    64($k0)
-    lw  $s3,    68($k0)
-    lw  $s4,    72($k0)
-    lw  $s5,    76($k0)
-    lw  $s6,    80($k0)
-    lw  $s7,    84($k0)
+    	lw  	$ra,    52($k0)
+    	lw  	$s0,    56($k0)
+    	lw  	$s1,    60($k0)
+    	lw  	$s2,    64($k0)
+    	lw  	$s3,    68($k0)
+    	lw  	$s4,    72($k0)
+    	lw  	$s5,    76($k0)
+    	lw  	$s6,    80($k0)
+    	lw  	$s7,    84($k0)
 .set noat
 	move	$at, $k1		# Restore $at
 .set at 
 	eret
 
 int_bot_move:
-    move    $t0, $a0
-    move    $t1, $a1
-    li      $t4, 32767 # check to make sure bot has a place to go
-    bne     $t0, $t4, int_bot_move_allow
-    bne     $t1, $t4, int_bot_move_allow
-    li      $t4, 0
-    sw      $t4, VELOCITY
-    j       int_bot_move_end
+	sub 	$sp,	$sp,	24
+	sw 	$ra,	0($sp)
+	sw 	$s3,	4($sp)
+	sw 	$s4,	8($sp)
+	sw 	$s7,	12($sp)
+	sw 	$s2,	16($sp)
+	sw 	$s4,	20($sp)
 
-int_bot_move_allow:
-    li      $t2, 10
-    sw      $t2, VELOCITY
-    lw      $t2, BOT_X
-    lw      $t3, BOT_Y
-    li      $t4, 30
+	li 	$s7,	30
+	mul 	$a0,	$a0,	$s7
+	add 	$a0,	$a0,	15	# $a0 = 15 + x * 30
+	mul 	$a1,	$a1,	$s7
+	add 	$a1,	$a1,	15	# $a1 = 15 + y * 30
+	lw 	$s2,	BOT_X 
+	lw 	$s3,	BOT_Y
 
-    div     $t2, $t2, 30
-    div     $t3, $t3, 30
+	# Put out fire!
+	li	$s7, 	0
+	sw 	$s7,	ANGLE
+	
+	li 	$s7, 	1
+	sw 	$s7, 	ANGLE_CONTROL
 
-## start checking x direction
-    beq     $t0, $t2, int_bot_move_x_end
-    rem     $t5, $t3, 2
+xmove_loop:
+	lw 	$s2,	BOT_X	
+	sub 	$s4,	$a0,	$s2	# xdif
+	beq 	$s4,	0,	xmove_endloop
+	blt	$s4,	0,	xmove_negative
+	li 	$s7,	10
+	sw 	$s7,	VELOCITY
+	j 	xmove_loop
+	
+xmove_negative:
+	li 	$s7,	-10
+	sw 	$s7,	VELOCITY
+	j 	xmove_loop
 
-int_bot_move_x_start:
-    bge     $t0, $t2, int_bot_move_x_right
-    li      $t4, 180 # turn bot left because the gotox position is less than botx position
-    sw      $t4, ANGLE
-    li      $t4, 1
-    sw      $t4, ANGLE_CONTROL
-    j       int_bot_move_x_next
-int_bot_move_x_right:
-    li      $t4, 0
-    sw      $t4, ANGLE
-    li      $t4, 1
-    sw      $t4, ANGLE_CONTROL
+xmove_endloop:
 
-int_bot_move_x_next:
-    lw      $t2, BOT_X
-    div     $t2, $t2, 30
+	# set angle to 90
+	li	$s7, 	90
+	sw 	$s7,	ANGLE
 
-    rem     $t6, $t2, 2
-    and     $t6, $t5, $t6
-    beq     $t6, $zero, int_bot_no_plant_x
-    beq     $t4, $t2, int_bot_no_plant_x
-    move    $t4, $t2
-    sw      $zero, SEED_TILE
-    bne     $t0, $t2, int_bot_move_x_next
-int_bot_no_plant_x:
-    la      $t7, tile_data
-    mul     $t8, $t3, 10
-    add     $t8, $t8, $t2
-    mul     $t8, $t8, 16
-    add     $t8, $t8, $t7
-    lw      $t7, 0($t8)
-    lw      $t8, 4($t8)
-    and     $t7, $t7, $8
-    beq     $t7, $zero, int_bot_tile_x_owner
-    sw      $zero, BURN_TILE
-int_bot_tile_x_owner:
-    li      $t4, 10
-    sw      $t4, VELOCITY
-    bne     $t0, $t2, int_bot_move_x_next
-int_bot_move_x_end:
+	li 	$s7, 	1
+	sw 	$s7, 	ANGLE_CONTROL
 
-## start checking Y direction now
-    beq     $t1, $t3, int_bot_move_y_end
+ymove_loop:
+	lw 	$s3,	BOT_Y
+	sub 	$s4,	$a1,	$s3	# ydif
+	beq 	$s4,	0,	ymove_endloop
+	blt	$s4,	0,	ymove_negative
+	li 	$s7,	10
+	sw 	$s7,	VELOCITY
+	j 	ymove_loop
+	
+ymove_negative:
+	li 	$s7,	-10
+	sw 	$s7,	VELOCITY
+	j 	ymove_loop
 
-    rem     $t5, $t2, 2
-int_bot_move_y_start:
-    bge     $t1, $t3, int_bot_move_y_down
-    li      $t4, 270
-    sw      $t4, ANGLE
-    li      $t4, 1
-    sw      $t4, ANGLE_CONTROL
-    j       int_bot_move_y_next
-int_bot_move_y_down:
-    li      $t4, 90
-    sw      $t4, ANGLE
-    li      $t4, 1
-    sw      $t4, ANGLE_CONTROL
+ymove_endloop:
+	sw 	$s7 	PUT_OUT_FIRE
+	sw 	$zero	VELOCITY
 
-int_bot_move_y_next:
-    lw      $t3, BOT_Y
-    div     $t3, $t3, 30
-
-    rem     $t6, $t3, 2
-    and     $t6, $t5, $t6
-    beq     $t6, $zero, int_bot_no_plant_y
-    beq     $t4, $t3, int_bot_no_plant_y
-    move    $t4, $t3
-    sw      $zero, SEED_TILE
-    bne     $t1, $t3, int_bot_move_y_next
-int_bot_no_plant_y:
-    la      $t7, tile_data
-    mul     $t8, $t3, 10
-    add     $t8, $t8, $t2
-    mul     $t8, $t8, 16
-    add     $t8, $t8, $t7
-    lw      $t7, 0($t8)
-    lw      $t8, 4($t8)
-    and     $t7, $t7, $8
-    beq     $t7, $zero, int_bot_tile_y_owner
-    sw      $zero, BURN_TILE
-int_bot_tile_y_owner:
-    li      $t4, 10
-    sw      $t4, VELOCITY
-    bne     $t1, $t3, int_bot_move_y_next
-int_bot_move_y_end:
-
-    # We just went through the loops and its safe to assume
-    # that the bot position is the same as the target position
-    sw      $zero, VELOCITY
-    jr      $ra
+	lw 	$ra,	0($sp)
+	lw 	$s3,	4($sp)
+	lw 	$s4,	8($sp)
+	lw 	$s7,	12($sp)
+	lw 	$s2,	16($sp)
+	lw 	$s4,	20($sp)
+	add 	$sp,	$sp,	24
+	jr 	$ra
 
 #########################################MAIN###########################################
 .data
@@ -319,117 +278,146 @@ SOLVE_PUZZLE: .space 4
 
 .text
 main:
-    sw  $zero, SEED_TILE
-looooop:
-    la      $t0, tile_data
-    sw      $t0, TILE_SCAN
+    	#sw  	$zero, 	SEED_TILE
+
+    	la      $t0, 	tile_data
+    	sw      $t0, 	TILE_SCAN
 	# go wild
 	# the world is your oyster :)
 
 	# Enable interrupts
 	li	$t4, 	ON_FIRE_MASK	# on fire interrupt enable bit
-    or  $t4,    REQUEST_PUZZLE_INT_MASK
-    or  $t4,    MAX_GROWTH_INT_MASK
+    	or  	$t4,    REQUEST_PUZZLE_INT_MASK
+    	or  	$t4,    MAX_GROWTH_INT_MASK
 	or	$t4, 	$t4, 1		# global interrupt enable
 	mtc0	$t4, 	$12		# set interrupt mask (Status register)
-    la  $t3,    SOLVE_PUZZLE
-    li  $t5, 3
-    lw  $t4, 0($t3)
 
-	li 	$t0,	0
-	sw 	$t0,	VELOCITY
+	# send 5 seed requests
+	li 	$t0,	0		# i
+	li 	$t1,	5		# 5 puzzle for 15 seeds
+	li 	$t2,	1		# type = seed # 0 for water, 1 for seeds, 2 for fire starters
+	sw 	$t2,	SET_RESOURCE_TYPE
 
-    beq $t4, $t5, noPuzzleRequest # puzzle already requested
-    lw  $t0, GET_NUM_SEEDS
-    bne $t0, $zero, checkNumFireStarters
+
+infinite:
+	jal 	solve_puzzle
+	jal 	solve_puzzle
+	jal 	solve_puzzle
+	# Check resources
+	lw  $t0, GET_NUM_SEEDS
+    bge $t0, 3, noPuzzleRequest
 	li  $t1, 1  # 0 for water, 1 for seeds, 2 for fire starters
     sw  $t1,    SET_RESOURCE_TYPE
     la  $t0,    puzzle_data
     sw  $t0,    REQUEST_PUZZLE
-    sw  $t5, 0($t3)
     j   noPuzzleRequest
-checkNumFireStarters:
-    lw  $t0, GET_NUM_FIRE_STARTERS
-    bgt $t0, $zero, checkNumWater
-    li  $t1, 2
-    sw  $t1,    SET_RESOURCE_TYPE
-    la  $t0,    puzzle_data
-    sw  $t0,    REQUEST_PUZZLE
-    sw  $t5, 0($t3)
-    j   noPuzzleRequest
-checkNumWater: # need to put out water
-    lw  $t0, GET_NUM_WATER_DROPS
-    bne $t0, $zero, noPuzzleRequest
-    li  $t1, 0
-    sw  $t1,    SET_RESOURCE_TYPE
-    la  $t0,    puzzle_data
-    sw  $t0,    REQUEST_PUZZLE
-    sw  $t5, 0($t3)
+#checkNumFireStarters:
+#    lw  $t0, GET_NUM_FIRE_STARTERS
+#    bgt $t0, $zero, checkNumWater
+#    li  $t1, 2
+#    sw  $t1,    SET_RESOURCE_TYPE
+#    la  $t0,    puzzle_data
+#    sw  $t0,    REQUEST_PUZZLE
+#    j   noPuzzleRequest
+#checkNumWater: # need to put out water
+#    lw  $t0, GET_NUM_WATER_DROPS
+#    bge $t0, 10, noPuzzleRequest
+#    li  $t1, 0
+#    sw  $t1,    SET_RESOURCE_TYPE
+#    la  $t0,    puzzle_data
+#    sw  $t0,    REQUEST_PUZZLE
 noPuzzleRequest:
-    lw      $a0, BOT_Y          # botY
-    lw      $a1, BOT_X          # botX
+	# Sequentially checks the four tiles around it. If the tile is empty, go there and plant.
+	# If current tile is not seeded. Seed it.
+	lw 	$s0,	BOT_X
+	lw 	$s1, 	BOT_Y
+	div 	$a0,	$s0,	30	# xcoord
+	div	$a1,	$s1,	30	# ycoord
+	jal 	check_empty
+	bne 	$v0,	0,	seed_skip
+	sw 	$0,	SEED_TILE
+seed_skip:
+	# if (x + 1 is empty) goto x + 1
+	div 	$a0,	$s0,	30	# xcoord
+	div	$a1,	$s1,	30	# ycoord
+	add 	$a0,	$a0,	1	# x + 1
+	jal 	check_empty
+	bne 	$v0,	0,	xplus1_skip
+	div 	$a0,	$s0,	30	# xcoord
+	div	$a1,	$s1,	30	# ycoord
+	add 	$a0,	$a0,	1	# x + 1
+	jal 	move_bot
+	j 	infinite
+xplus1_skip:
+	# if (x - 1 is empty) goto x - 1
+	div 	$a0,	$s0,	30	# xcoord
+	div	$a1,	$s1,	30	# ycoord
+	sub 	$a0,	$a0,	1	# x - 1
+	jal 	check_empty
+	bne 	$v0,	0,	xminus1_skip
+	div 	$a0,	$s0,	30	# xcoord
+	div	$a1,	$s1,	30	# ycoord
+	sub 	$a0,	$a0,	1	# x - 1
+	jal 	move_bot
+	j 	infinite
+xminus1_skip:
+	# if (y + 1 is empty) goto y + 1
+	div 	$a0,	$s0,	30	# xcoord
+	div	$a1,	$s1,	30	# ycoord
+	add 	$a1,	$a1,	1	# y + 1
+	jal 	check_empty
+	bne 	$v0,	0,	yplus1_skip
+	div 	$a0,	$s0,	30	# xcoord
+	div	$a1,	$s1,	30	# ycoord
+	add 	$a1,	$a1,	1	# y + 1
+	jal 	move_bot
+	j 	infinite
+yplus1_skip:
+	# if (y - 1 is empty) goto y + 1
+	div 	$a0,	$s0,	30	# xcoord
+	div	$a1,	$s1,	30	# ycoord
+	sub 	$a1,	$a1,	1	# y - 1
+	jal 	check_empty
+	bne 	$v0,	0,	yminus1_skip
+	div 	$a0,	$s0,	30	# xcoord
+	div	$a1,	$s1,	30	# ycoord
+	sub 	$a1,	$a1,	1	# y - 1
+	jal 	move_bot
+	j 	infinite
+yminus1_skip:
 
-    li      $t0, 30
-
-    div     $a0, $a0, $t0
-    div     $a1, $a1, $t0
-
-    li      $t0, 32767          # gotoDist
-    li      $t1, 32767          # gotoY
-    li      $t2, 32767          # gotoX
-
-    li      $t3, 10             # to compare with x and y
-    li      $t4, 0              # int y
-
-tileLoopY:
-    li      $t5, 0              # int x
-tileLoopX:
-    mul     $t6, $t4, 10        # tmpPos = tmpPosY * 10 
-    add     $t6, $t6, $t5       # tmpPos += tmpPosX
-    mul     $t6, $t6, 16
-    la      $t7, tile_data
-    add     $t6, $t7, $t6
-    lw      $t7, 0($t6)
-    lw      $t8, 4($t6)
-    and     $t7, $t7, $8
-    beq     $t7, $0, endGrowing
-    sub     $t8, $a0, $t4       # disY = botY - tmpPosY
-    mul     $t8, $t8, $t8       # disY *= disY
-    sub     $t9, $a1, $t5       # disX = botX - tmpPosX
-    mul     $t9, $t9, $t9       # disX *= disX
-    add     $t8, $t8, $t9       # totalDis = disX + disY
-    ble     $t0, $t8, endGrowing
-    beq     $t8, $zero, endGrowing
-    move    $t0, $t8            # gotodist = totalDis
-    move    $t1, $t5            # gotoX = tmpPosX
-    move    $t2, $t4            # gotoY = tmpPosY
-endGrowing:
-    add     $t5, $t5, 1         # x++
-    blt     $t5, 10, tileLoopX
-    add     $t4, $t4, 1         # y++
-    blt     $t4, 10, tileLoopY
-
-    bne     $t1, 32767, moveOk
-    bne     $t2, 32767, moveOk
-    #j   looooop
-    lw      $t1, BOT_X
-    lw      $t2, OTHER_BOT_Y
-    rem     $t1, $t2, 10
-    rem     $t2, $t1, 10
-moveOk:
-    move    $a0, $t1            # gotoX = tmpPosX
-    move    $a1, $t2            # gotoY = tmpPosY
-    jal     bot_move
-# Wait for puzzle to be loaded
-#infinite:
-
-	jal 	solve_puzzle
-
-#	j 	infinite
-
-	j 	looooop
+	j 	infinite
 
 #########################################FUNCTIONS###########################################
+check_empty:
+	# $a0 = x, $a1 = y;
+	sub 	$sp,	$sp,	20
+	sw 	$ra,	0($sp)
+	sw 	$s0,	4($sp)
+	sw 	$s1,	8($sp)
+	sw 	$s2,	12($sp)
+
+	li 	$v0,	1
+	bge 	$a0,	10, 	ce_return	# if x > 10 return 0
+	blt 	$a0,	0,	ce_return
+	bge 	$a1,	10,	ce_return
+	blt 	$a1,	0,	ce_return
+
+	la      $s1, 	tile_data	# &tile_data
+    	sw      $s1, 	TILE_SCAN
+    	# index in tile_data = x + y * 10
+    	mul 	$s0,	$a1,	10
+    	add 	$s0,	$a0,	$s0 	# x + y * 10
+    	sll 	$s0,	$s0,	4	# index * 16(TileInfo size)
+    	add 	$t0,	$s1,	$s0
+    	lw 	$v0,	0($t0)		# state
+ce_return:
+    	lw 	$ra,	0($sp)
+	lw 	$s0,	4($sp)
+	lw 	$s1,	8($sp)
+	lw 	$s2,	12($sp)
+	add 	$sp,	$sp,	20
+	jr 	$ra
 
 
 bot_move:
@@ -592,264 +580,221 @@ pi_end:
 
 .globl recursive_backtracking
 recursive_backtracking:
-	# Your code goes here :)
-	sub 	$sp,	$sp,	692
-	sw 	$ra,	0($sp)
-	sw 	$s0,	4($sp)
-	sw 	$s1,	8($sp)
-	sw 	$s2,	12($sp)
-	sw 	$s3,	16($sp)
-	sw 	$s4,	20($sp)
-	sw 	$s5,	24($sp)
-	sw 	$s6,	28($sp)
-	sw 	$s7,	32($sp)
+  sub   $sp, $sp, 680
+  sw    $ra, 0($sp)
+  sw    $a0, 4($sp)     # solution
+  sw    $a1, 8($sp)     # puzzle
+  sw    $s0, 12($sp)    # position
+  sw    $s1, 16($sp)    # val
+  sw    $s2, 20($sp)    # 0x1 << (val - 1)
+                        # sizeof(Puzzle) = 8
+                        # sizeof(Cell [81]) = 648
 
+  jal   is_complete
+  bne   $v0, $0, recursive_backtracking_return_one
+  lw    $a0, 4($sp)     # solution
+  lw    $a1, 8($sp)     # puzzle
+  jal   get_unassigned_position
+  move  $s0, $v0        # position
+  li    $s1, 1          # val = 1
+recursive_backtracking_for_loop:
+  lw    $a0, 4($sp)     # solution
+  lw    $a1, 8($sp)     # puzzle
+  lw    $t0, 0($a1)     # puzzle->size
+  add   $t1, $t0, 1     # puzzle->size + 1
+  bge   $s1, $t1, recursive_backtracking_return_zero  # val < puzzle->size + 1
+  lw    $t1, 4($a1)     # puzzle->grid
+  mul   $t4, $s0, 8     # sizeof(Cell) = 8
+  add   $t1, $t1, $t4   # &puzzle->grid[position]
+  lw    $t1, 0($t1)     # puzzle->grid[position].domain
+  sub   $t4, $s1, 1     # val - 1
+  li    $t5, 1
+  sll   $s2, $t5, $t4   # 0x1 << (val - 1)
+  and   $t1, $t1, $s2   # puzzle->grid[position].domain & (0x1 << (val - 1))
+  beq   $t1, $0, recursive_backtracking_for_loop_continue # if (domain & (0x1 << (val - 1)))
+  mul   $t0, $s0, 4     # position * 4
+  add   $t0, $t0, $a0
+  add   $t0, $t0, 4     # &solution->assignment[position]
+  sw    $s1, 0($t0)     # solution->assignment[position] = val
+  lw    $t0, 0($a0)     # solution->size
+  add   $t0, $t0, 1
+  sw    $t0, 0($a0)     # solution->size++
+  add   $t0, $sp, 32    # &grid_copy
+  sw    $t0, 28($sp)    # puzzle_copy.grid = grid_copy !!!
+  move  $a0, $a1        # &puzzle
+  add   $a1, $sp, 24    # &puzzle_copy
+  jal   clone           # clone(puzzle, &puzzle_copy)
+  mul   $t0, $s0, 8     # !!! grid size 8
+  lw    $t1, 28($sp)
+  
+  add   $t1, $t1, $t0   # &puzzle_copy.grid[position]
+  sw    $s2, 0($t1)     # puzzle_copy.grid[position].domain = 0x1 << (val - 1);
+  move  $a0, $s0
+  add   $a1, $sp, 24
+  jal   forward_checking  # forward_checking(position, &puzzle_copy)
+  beq   $v0, $0, recursive_backtracking_skip
 
-	move 	$s0,	$a0		# $s0 = solution
-	move 	$s1,	$a1 		# $s1 = puzzle
-	jal 	is_complete 		# $v0 = is_complete(solution, puzzle)
-	beq 	$v0,	$zero,	rb_endif1
+  lw    $a0, 4($sp)     # solution
+  add   $a1, $sp, 24    # &puzzle_copy
+  jal   recursive_backtracking
+  beq   $v0, $0, recursive_backtracking_skip
+  j     recursive_backtracking_return_one # if (recursive_backtracking(solution, &puzzle_copy))
+recursive_backtracking_skip:
+  lw    $a0, 4($sp)     # solution
+  mul   $t0, $s0, 4
+  add   $t1, $a0, 4
+  add   $t1, $t1, $t0
+  sw    $0, 0($t1)      # solution->assignment[position] = 0
+  lw    $t0, 0($a0)
+  sub   $t0, $t0, 1
+  sw    $t0, 0($a0)     # solution->size -= 1
+recursive_backtracking_for_loop_continue:
+  add   $s1, $s1, 1     # val++
+  j     recursive_backtracking_for_loop
+recursive_backtracking_return_zero:
+  li    $v0, 0
+  j     recursive_backtracking_return
+recursive_backtracking_return_one:
+  li    $v0, 1
+recursive_backtracking_return:
+  lw    $ra, 0($sp)
+  lw    $a0, 4($sp)
+  lw    $a1, 8($sp)
+  lw    $s0, 12($sp)
+  lw    $s1, 16($sp)
+  lw    $s2, 20($sp)
+  add   $sp, $sp, 680
+  jr    $ra
 
-	li 	$v0,	1		# return 1;
-	lw 	$ra,	0($sp)		
-	lw 	$s0,	4($sp)
-	lw 	$s1,	8($sp)
-	lw 	$s2,	12($sp)
-	lw 	$s3,	16($sp)
-	lw 	$s4,	20($sp)
-	lw 	$s5,	24($sp)
-	lw 	$s6,	28($sp)
-	lw 	$s7,	32($sp)
-	add 	$sp,	$sp,	692
-	jr 	$ra
-rb_endif1:
-	move 	$a0,	$s0		# $a0 = solution
-	move 	$a1,	$s1		# $a1 = puzzle
-	jal 	get_unassigned_position	# $v0 = get_unassigned_position(solution, puzzle)
-	move 	$s2,	$v0 		# $s2 = position
-	li 	$s3,	1		# $s3 = val
-	lw 	$s4,	0($s1) 		
-	add 	$s4,	$s4,	1	# $s4 = puzzle->size + 1
-rb_loop1:
-	bge 	$s3,	$s4,	rb_endloop
-	sll 	$t0,	$s2,	3 	# position << 3
-	lw 	$t1,	4($s1)		# &grid ($t1 free)
-	add 	$t0,	$t0,	$t1 	# &grid[position].domain
-	lw 	$t1,	0($t0)		# $t1 = grid[position].domain ($t0 free)
-	li 	$s5,	1
-	sub 	$t2,	$s3,	1	# $t2 = val - 1
-	sll 	$s5,	$s5,	$t2	# $s5 = 0x1 << (val - 1) ($t2 free)
-	and 	$t1,	$t1,	$s5 	# $t1 = puzzle->grid[position].domain & (0x1 << (val - 1))
-	beq 	$t1,	0,	rb_endif2	# ($t1 free)
-	sll 	$t0,	$s2,	2 	# position << 2
-	add 	$t1,	$s0,	$t0 	# $t1 = &solution->assignement[position] - 4 ($t0 free)
-	sw 	$s3,	4($t1) 		# store val to &solution->assignement[position] ($t1 free)
-	lw 	$t0,	0($s0)		# $t0 = solution->size
-	add 	$t0,	$t0,	1
-	sw 	$t0,	0($s0)		# solution->size += 1 ($t0 free)
-	add 	$s6,	$sp,	36	# $s6 = &puzzle_copy (memsize = 8)
-	add 	$s7,	$sp,	44	# $s7 = &grid_copy (memsize = 8 * 81)
-	sw 	$s7,	4($s6) 		# puzzle_copy.grid = grid_copy
-	move 	$a0,	$s1 		# $a0 = puzzle
-	move 	$a1,	$s6 		# $a1 = &puzzle_copy
-	jal 	clone
-	lw 	$t0,	4($s6)		# $t0 = puzzle_copy.&grid
-	sll 	$t1,	$s2,	3	# $t1 = position << 3
-	add 	$t0,	$t0,	$t1	# $t0 = &puzzle_copy.grid[position].domain
-	sw	$s5,	0($t0)		# puzzle_copy.grid[position].domain = 0x1 << (val - 1) 
-	move 	$a0,	$s2 		# $a0 = position
-	move 	$a1,	$s6 		# $a1 = &puzzle_copy
-	jal	forward_checking 	# $v0 = forward_checking(solution, &puzzle_copy)
-	beq 	$v0,	0,	rb_endif3 	# $v0 free
-	move 	$a0,	$s0 		# $a0 = solution
-	move 	$a1,	$s6 		# $a1 = &puzzle_copy
-	jal 	recursive_backtracking 	# $v0 = recursive_backtracking(solution, &puzzle_copy)
-	beq 	$v0,	0,	rb_endif3 	# $v0 free
-	li 	$v0,	1
-	lw 	$ra,	0($sp)
-	lw 	$s0,	4($sp)
-	lw 	$s1,	8($sp)
-	lw 	$s2,	12($sp)
-	lw 	$s3,	16($sp)
-	lw 	$s4,	20($sp)
-	lw 	$s5,	24($sp)
-	lw 	$s6,	28($sp)
-	lw 	$s7,	32($sp)
-	add 	$sp,	$sp,	692
-	jr 	$ra			# return 1
-rb_endif3:
-	sll 	$t0,	$s2,	2 	# position << 2
-	add 	$t1,	$s0,	$t0 	# $t1 = &solution->assignement[position] - 4 ($t0 free)
-	sw 	$zero,	4($t1) 		# solution->assignement[position] = 0 ($t1 free)
-	lw 	$t0,	0($s0)
-	sub 	$t0,	$t0,	1
-	sw 	$t0,	0($s0) 		# solution->size -= 1
-rb_endif2:
-	add 	$s3,	$s3,	1	# val++
-	j	rb_loop1
-rb_endloop:
-	li 	$v0,	0
-	lw 	$ra,	0($sp)
-	lw 	$s0,	4($sp)
-	lw 	$s1,	8($sp)
-	lw 	$s2,	12($sp)
-	lw 	$s3,	16($sp)
-	lw 	$s4,	20($sp)
-	lw 	$s5,	24($sp)
-	lw 	$s6,	28($sp)
-	lw 	$s7,	32($sp)
-	add 	$sp,	$sp,	692
-	jr  	$ra			# return 0
 
 
 .globl is_complete
 is_complete:
-	# Your code goes here :)
-	lw	$t0	0($a0)		# $t0 = solution->size
-	lw 	$t1	0($a1)		# $t1 = puzzle->size
-	mul 	$t1 	$t1 	$t1	# $t1 = puzzle->size * puzzle->size
-	seq 	$v0	$t0 	$t1
-	jr	$ra
+  lw    $t0, 0($a0)       # solution->size
+  lw    $t1, 0($a1)       # puzzle->size
+  mul   $t1, $t1, $t1     # puzzle->size * puzzle->size
+  move	$v0, $0
+  seq   $v0, $t0, $t1
+  j     $ra
 
 
 .globl get_unassigned_position
 get_unassigned_position:
-	# Your code goes here :)
-	li 	$v0,	0			# unassigned_pos = 0
-	lw	$t1,	0($a1)	
-	mul 	$t1,	$t1,	$t1 		# puzzle->size * puzzle->size
-gup_loop:
-	bge 	$v0,	$t1,	gup_endloop
-	sll 	$t3,	$v0,	2		# unassigned_pos << 2
-	add 	$t2,	$a0,	$t3		# &solution[unassigned_pos] - 4
-	lw 	$t2,	4($t2)			# $t2 = solution[unassigned_poz]
-	beq 	$t2,	$zero,	gup_endloop	# break if $t2 equal to 0
-	add 	$v0,	$v0,	1		# unassigned_pos++
-	j	gup_loop
-gup_endloop:
-	jr  	$ra
+  li    $v0, 0            # unassigned_pos = 0
+  lw    $t0, 0($a1)       # puzzle->size
+  mul  $t0, $t0, $t0     # puzzle->size * puzzle->size
+  add   $t1, $a0, 4       # &solution->assignment[0]
+get_unassigned_position_for_begin:
+  bge   $v0, $t0, get_unassigned_position_return  # if (unassigned_pos < puzzle->size * puzzle->size)
+  mul  $t2, $v0, 4
+  add   $t2, $t1, $t2     # &solution->assignment[unassigned_pos]
+  lw    $t2, 0($t2)       # solution->assignment[unassigned_pos]
+  beq   $t2, 0, get_unassigned_position_return  # if (solution->assignment[unassigned_pos] == 0)
+  add   $v0, $v0, 1       # unassigned_pos++
+  j   get_unassigned_position_for_begin
+get_unassigned_position_return:
+  jr    $ra
 
 
 .globl forward_checking
 forward_checking:
-    # Your code goes here :)
-	lw	$t0,	0($a1)		# size
-	li	$t1, 	0		# col = 0
-fc_loop1:
-	bge	$t1, 	$t0, 	fc_endloop1
-	rem 	$t2, 	$a0,	$t0	# position % size
-	beq 	$t1,	$t2,	fc_endif1
-	div 	$t3,	$a0,	$t0
-	mul	$t3,	$t3,	$t0
-	add 	$t3,	$t3,	$t1 	# row_pos
-	lw 	$t5,	4($a1)		# &grid	DO NOT CHANGE
-	sll	$t3,	$t3,	3	# row_pos << 3 (size of a Cell is 8 bytes)
-	add 	$t4,	$t5,	$t3 	# &grid[row_pos].domain
-	lw 	$t6,	0($t4)		# grid[row_pos].domain
-	sll 	$t2,	$a0,	3	# position << 3
-	add 	$t2,	$t5,	$t2	# &grid[position].domain
-	lw 	$t2,	0($t2) 		# grid[position].domain
-	not 	$t2,	$t2 		# ~grid[position].domain
-	and 	$t6,	$t6,	$t2	# puzzle->grid[row_pos].domain &= ~puzzle->grid[position].domain;
-	sw	$t6,	0($t4)		# store puzzle->grid[row_pos].domain
-	bne 	$t6,	$zero,	fc_endif1
-	li 	$v0,	0
-	jr 	$ra
-fc_endif1:
-	add 	$t1, 	$t1, 	1	# col++
-	j	fc_loop1
-fc_endloop1:
+  sub   $sp, $sp, 24
+  sw    $ra, 0($sp)
+  sw    $a0, 4($sp)
+  sw    $a1, 8($sp)
+  sw    $s0, 12($sp)
+  sw    $s1, 16($sp)
+  sw    $s2, 20($sp)
+  lw    $t0, 0($a1)     # size
+  li    $t1, 0          # col = 0
+fc_for_col:
+  bge   $t1, $t0, fc_end_for_col  # col < size
+  div   $a0, $t0
+  mfhi  $t2             # position % size
+  mflo  $t3             # position / size
+  beq   $t1, $t2, fc_for_col_continue    # if (col != position % size)
+  mul   $t4, $t3, $t0
+  add   $t4, $t4, $t1   # position / size * size + col
+  mul   $t4, $t4, 8
+  lw    $t5, 4($a1) # puzzle->grid
+  add   $t4, $t4, $t5   # &puzzle->grid[position / size * size + col].domain
+  mul   $t2, $a0, 8   # position * 8
+  add   $t2, $t5, $t2 # puzzle->grid[position]
+  lw    $t2, 0($t2) # puzzle -> grid[position].domain
+  not   $t2, $t2        # ~puzzle->grid[position].domain
+  lw    $t3, 0($t4) #
+  and   $t3, $t3, $t2
+  sw    $t3, 0($t4)
+  beq   $t3, $0, fc_return_zero # if (!puzzle->grid[position / size * size + col].domain)
+fc_for_col_continue:
+  add   $t1, $t1, 1     # col++
+  j     fc_for_col
+fc_end_for_col:
+  li    $t1, 0          # row = 0
+fc_for_row:
+  bge   $t1, $t0, fc_end_for_row  # row < size
+  div   $a0, $t0
+  mflo  $t2             # position / size
+  mfhi  $t3             # position % size
+  beq   $t1, $t2, fc_for_row_continue
+  lw    $t2, 4($a1)     # puzzle->grid
+  mul   $t4, $t1, $t0
+  add   $t4, $t4, $t3
+  mul   $t4, $t4, 8
+  add   $t4, $t2, $t4   # &puzzle->grid[row * size + position % size]
+  lw    $t6, 0($t4)
+  mul   $t5, $a0, 8
+  add   $t5, $t2, $t5
+  lw    $t5, 0($t5)     # puzzle->grid[position].domain
+  not   $t5, $t5
+  and   $t5, $t6, $t5
+  sw    $t5, 0($t4)
+  beq   $t5, $0, fc_return_zero
+fc_for_row_continue:
+  add   $t1, $t1, 1     # row++
+  j     fc_for_row
+fc_end_for_row:
 
-	li 	$t1,	0		# row = 0
-fc_loop2:
-	bge 	$t1,	$t0,	fc_endloop2
-	div 	$t2,	$a0,	$t0
-	beq 	$t1,	$t2,	fc_endif2
-	mul 	$t2,	$t1,	$t0
-	rem 	$t3,	$a0,	$t0
-	add 	$t2,	$t2,	$t3 	# col_pos
-	sll 	$t2,	$t2,	3	# col_pos << 3
-	add 	$t3,	$t5,	$t2	# &grid[col_pos].domain
-	lw 	$t2,	0($t3) 		# grid[col_pos].domain
-	sll 	$t4,	$a0,	3 	# position << 3
-	add 	$t4,	$t5,	$t4	# &grid[position].domain
-	lw 	$t4,	0($t4) 		# grid[position].domain
-	not 	$t4,	$t4 		# ~grid[position].domain
-	and 	$t2,	$t2,	$t4 	# puzzle->grid[row_pos].domain &= ~puzzle->grid[position].domain;
-	sw 	$t2,	0($t3) 		# store puzzle->grid[col_pos].domain
-	bne 	$t2,	$zero,	fc_endif2
-	li 	$v0,	0
-	jr 	$ra
-fc_endif2:
-	add 	$t1,	$t1,	1	# row++
-	j 	fc_loop2
-fc_endloop2:
-
-	sub 	$sp,	$sp,	36
-    	sw     	$ra, 	0($sp)
-   	sw    	$s0, 	4($sp)
-    	sw  	$s1, 	8($sp)
-    	sw    	$s2, 	12($sp)
-    	sw     	$s3, 	16($sp)
-	sw 	$s4,	20($sp)
-	sw 	$s5,	24($sp)
-	sw 	$s6,	28($sp)
-	sw 	$s7 	32($sp)
-	move 	$s0,	$a0 		# $s0 = position
-	move 	$s1,	$a1 		# $s1 = puzzle 
-
-
-	li 	$s2,	0		# i = 0;
-	sll 	$s3,	$s0,	3 	# position << 3
-	lw 	$s6,	4($s1)		# &grid	
-	add 	$s3,	$s3,	$s6	# &grid[position]
-	lw 	$s4,	4($s3)		# &grid[position].cage DO NOT CHANGE before the function call
-	lw 	$s3,	8($s4) 		# grid[position].cage->num_cell DO NOT CHANGE before the function call
-fc_loop3:
-	bge 	$s2,	$s3,	fc_endloop3
-	lw 	$t4,	12($s4)		# &puzzle->grid[position].cage->positions
-	sll 	$s5,	$s2,	2	# i << 2
-	add 	$t4,	$t4,	$s5 	# &puzzle->grid[position].cage->positions[i]
-	lw 	$t4,	0($t4) 		# cage_pos = puzzle->grid[position].cage->positions[i]
-	sll 	$s5,	$t4,	3 	# cage_pos << 3
-	add 	$s7,	$s5,	$s6 	# &grid[cage_pos].domain
-	lw 	$s5,	0($s7)		# grid[cage_pos].domain
-	# FUNCTION CALL
-	# What we need after the call: $a0, $a1, $ra, i($s2), grid[position].cage->num_cell($s3), &grid[position].cage($s4), grid[cage_pos].domain($s5), &grid($s6), &grid[cage_pos].domain($s7)
-	move 	$a0,	$t4
-	move 	$a1,	$s1
-	jal	get_domain_for_cell	# $v0 = get_domain_for_cell(cage_pos, puzzle)
-	and 	$s5,	$s5,	$v0
-	sw 	$s5,	0($s7)		# store grid[cage_pos].domain to &grid[cage_pos].domain
-	bne 	$s5,	$zero,	fc_endif3
-	li 	$v0,	0
-    	lw     	$ra, 	0($sp)
-   	lw    	$s0, 	4($sp)
-    	lw  	$s1, 	8($sp)
-    	lw    	$s2, 	12($sp)
-    	lw     	$s3, 	16($sp)
-	lw 	$s4,	20($sp)
-	lw 	$s5,	24($sp)
-	lw 	$s6,	28($sp)
-	lw 	$s7 	32($sp)
-	add 	$sp,	$sp,	36
-	jr 	$ra			# return 0;
-fc_endif3:
-	add 	$s2,	$s2,	1
-	j	fc_loop3
-fc_endloop3:
-	li 	$v0,	1 		# return 1;
-    	lw     	$ra, 	0($sp)
-   	lw    	$s0, 	4($sp)
-    	lw  	$s1, 	8($sp)
-    	lw    	$s2, 	12($sp)
-    	lw     	$s3, 	16($sp)
-	lw 	$s4,	20($sp)
-	lw 	$s5,	24($sp)
-	lw 	$s6,	28($sp)
-	lw 	$s7 	32($sp)
-	add 	$sp,	$sp,	36
-    	jr  	$ra
+  li    $s0, 0          # i = 0
+fc_for_i:
+  lw    $t2, 4($a1)
+  mul   $t3, $a0, 8
+  add   $t2, $t2, $t3
+  lw    $t2, 4($t2)     # &puzzle->grid[position].cage
+  lw    $t3, 8($t2)     # puzzle->grid[position].cage->num_cell
+  bge   $s0, $t3, fc_return_one
+  lw    $t3, 12($t2)    # puzzle->grid[position].cage->positions
+  mul   $s1, $s0, 4
+  add   $t3, $t3, $s1
+  lw    $t3, 0($t3)     # pos
+  lw    $s1, 4($a1)
+  mul   $s2, $t3, 8
+  add   $s2, $s1, $s2   # &puzzle->grid[pos].domain
+  lw    $s1, 0($s2)
+  move  $a0, $t3
+  jal get_domain_for_cell
+  lw    $a0, 4($sp)
+  lw    $a1, 8($sp)
+  and   $s1, $s1, $v0
+  sw    $s1, 0($s2)     # puzzle->grid[pos].domain &= get_domain_for_cell(pos, puzzle)
+  beq   $s1, $0, fc_return_zero
+fc_for_i_continue:
+  add   $s0, $s0, 1     # i++
+  j     fc_for_i
+fc_return_one:
+  li    $v0, 1
+  j     fc_return
+fc_return_zero:
+  li    $v0, 0
+fc_return:
+  lw    $ra, 0($sp)
+  lw    $a0, 4($sp)
+  lw    $a1, 8($sp)
+  lw    $s0, 12($sp)
+  lw    $s1, 16($sp)
+  lw    $s2, 20($sp)
+  add   $sp, $sp, 24
+  jr    $ra
 
 
 
